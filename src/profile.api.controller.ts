@@ -76,7 +76,7 @@ export class ProfileApiController {
       motivations: body.motivations ?? null,
       // New enhanced onboarding fields
       learning_style: body.learning_style ?? null,
-      career_goal: body.career_goals ?? null, // Note: frontend sends career_goals, backend expects career_goal
+      career_goal: body.career_goal ?? null, // Note: frontend sends career_goals, backend expects career_goal
       experience_level: body.experience_level ?? null,
       preferred_pace: body.preferred_pace ?? null,
       time_commitment: body.time_commitment ?? null,
