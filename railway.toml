@@ -5,7 +5,7 @@ command = "npm run build"
 command = "npm run start:prod"
 
 [deploy]
-healthcheckPath = "/health"
+healthcheckPath = "/v1/health"
 healthcheckTimeout = 100
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 10
