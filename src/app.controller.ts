@@ -3,8 +3,15 @@ import { SupabaseGuard } from './auth/supabase.guard';
 
 @Controller('v1')
 export class AppController {
-  @Get('health') health() {
-    return { ok: true };
+  @Get('health') 
+  health() {
+    return { 
+      ok: true,
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      node_env: process.env.NODE_ENV || 'development'
+    };
   }
 
   @UseGuards(SupabaseGuard)

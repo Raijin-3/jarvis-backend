@@ -22,7 +22,23 @@ export function loadEnv() {
       if (hashIdx > -1) value = value.slice(0, hashIdx).trim();
       if (!process.env[key]) process.env[key] = value;
     }
-  } catch {
-    // ignore if .env not present
+    console.log('✅ Local .env file loaded successfully');
+  } catch (error) {
+    console.log('ℹ️ No local .env file found, using environment variables');
+    
+    // In production environments like Railway, ensure required variables are set
+    if (process.env.NODE_ENV === 'production') {
+      const requiredEnvVars = [
+        'SUPABASE_URL',
+        'SUPABASE_ANON_KEY',
+        'DATABASE_URL'
+      ];
+      
+      const missingVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+      if (missingVars.length > 0) {
+        console.error('❌ Missing required environment variables:', missingVars);
+        throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+      }
+    }
   }
 }

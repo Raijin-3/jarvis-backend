@@ -1,0 +1,11 @@
+[build]
+command = "npm run build"
+
+[start]
+command = "npm run start:prod"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 100
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10
