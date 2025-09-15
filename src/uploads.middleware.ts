@@ -35,7 +35,7 @@ export class UploadsMiddleware implements NestMiddleware {
         console.warn(`File not found: ${filePath}`, error);
         res.status(404).json({ 
           error: 'File not found',
-          message: 'Uploaded files may not persist in ephemeral environments like Railway'
+          message: 'Uploaded files may not persist in serverless environments like Vercel or Railway. Consider using cloud storage.'
         });
       }
     } else {
