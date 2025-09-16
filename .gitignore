@@ -96,3 +96,4 @@ error.log
 # Backup files
 *.backup
 *.bak
+*.tmp
