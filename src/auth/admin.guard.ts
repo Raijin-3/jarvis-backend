@@ -1,58 +1,71 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+
+type ProfileRow = { role?: string };
 
 @Injectable()
 export class AdminGuard implements CanActivate {
-  private restUrl = `${process.env.SUPABASE_URL}/rest/v1`;
-  private serviceKey = process.env.SUPABASE_SERVICE_ROLE?.trim();
+  private readonly restUrl = `${process.env.SUPABASE_URL}/rest/v1`;
+  private readonly serviceKey = process.env.SUPABASE_SERVICE_ROLE?.trim();
+  private readonly anonKey = process.env.SUPABASE_ANON_KEY?.trim();
+  private readonly allowDevAnon = process.env.ALLOW_DEV_UNVERIFIED_JWT === '1';
 
-  private headers() {
+  // Build headers for PostgREST (service role in prod; anon in dev if allowed)
+  private buildHeaders(): HeadersInit | null {
     const sk = this.serviceKey;
     const looksJwt = sk && sk.split('.').length === 3 && sk.length > 60;
     if (looksJwt) {
       return {
-        apikey: sk,
+        apikey: sk as string,
         Authorization: `Bearer ${sk}`,
         'Content-Type': 'application/json',
       };
     }
-    throw new InternalServerErrorException('Supabase service role key missing for admin guard');
+    if (this.allowDevAnon && this.anonKey) {
+      return {
+        apikey: this.anonKey as string,
+        Authorization: `Bearer ${this.anonKey}`,
+        'Content-Type': 'application/json',
+      };
+    }
+    return null; // no keys available → fail closed
   }
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
-    const user = request.user;
+  private getUserId(user: any): string | null {
+    return user?.id ?? user?.sub ?? null;
+  }
 
-    if (!user || !user.id) {
-      throw new ForbiddenException('User not authenticated');
-    }
+  private async getRole(userId: string): Promise<string | null> {
+    const headers = this.buildHeaders();
+    if (!headers || !this.restUrl) return null;
+
+    const url =
+      `${this.restUrl}/profiles?select=role&limit=1&id=eq.` +
+      encodeURIComponent(userId);
 
     try {
-      // Check if user has admin role in profiles table
-      const url = `${this.restUrl}/profiles?id=eq.${user.id}&select=role`;
-      const response = await fetch(url, { headers: this.headers() });
-
-      if (!response.ok) {
-        throw new InternalServerErrorException('Failed to verify user role');
-      }
-
-      const profiles = await response.json();
-      
-      if (profiles.length === 0) {
-        throw new ForbiddenException('User profile not found');
-      }
-
-      const profile = profiles[0];
-      
-      if (profile.role !== 'admin') {
-        throw new ForbiddenException('Admin access required');
-      }
-
-      return true;
-    } catch (error) {
-      if (error instanceof ForbiddenException || error instanceof InternalServerErrorException) {
-        throw error;
-      }
-      throw new InternalServerErrorException('Failed to verify admin privileges');
+      const res = await fetch(url, { headers, cache: 'no-store' });
+      if (!res.ok) return null;
+      const rows = (await res.json()) as ProfileRow[];
+      return rows?.[0]?.role ?? null;
+    } catch {
+      return null;
     }
+  }
+
+  // Returns true iff profile.role === 'admin'; false otherwise
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const req = context.switchToHttp().getRequest() as any;
+    const userId = this.getUserId(req?.user);
+
+    // Expose a convenience flag to downstream handlers (optional)
+    req.isAdmin = false;
+
+    if (!userId) return false;
+
+    const role = await this.getRole(userId);
+    const isAdmin = role === 'admin';
+    req.isAdmin = isAdmin;
+
+    return isAdmin;
   }
 }

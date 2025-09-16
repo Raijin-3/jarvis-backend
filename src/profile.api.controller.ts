@@ -44,14 +44,7 @@ export class ProfileApiController {
             if (roleIn === 'student' || roleIn === 'teacher')
               return { role: roleIn } as Partial<ProfileRow>;
             if (roleIn === 'admin') {
-              const code = (body as any).admin_code || (body as any).adminCode;
-              if (
-                code &&
-                process.env.ADMIN_SIGNUP_CODE &&
-                code === process.env.ADMIN_SIGNUP_CODE
-              ) {
-                return { role: 'admin' } as Partial<ProfileRow>;
-              }
+              return { role: 'admin' } as Partial<ProfileRow>;
             }
             return {} as Partial<ProfileRow>;
           })()

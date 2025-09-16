@@ -3,6 +3,7 @@ import { Injectable, InternalServerErrorException } from '@nestjs/common';
 export interface ProfileRow {
   id: string;
   role: string;
+  mobile?: string | null;
   education?: string | null;
   graduation_year?: number | null;
   domain?: string | null;
@@ -34,21 +35,21 @@ export interface ProfileRow {
 
 @Injectable()
 export class ProfilesService {
-  private restUrl = `${process.env.SUPABASE_URL}/rest/v1`;
-  private serviceKey = process.env.SUPABASE_SERVICE_ROLE;
-  private anonKey = process.env.SUPABASE_ANON_KEY;
+  private supabaseUrl = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '');
+  private restUrl = `${(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/$/, '')}/rest/v1`;
+  private serviceKey = process.env.SUPABASE_SERVICE_ROLE || process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  private anonKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   private headers(userToken?: string) {
-    if (!process.env.SUPABASE_URL) {
+    if (!this.supabaseUrl) {
       if (process.env.NODE_ENV === 'test') {
         return { 'Content-Type': 'application/json' } as Record<string, string>;
       }
-      throw new InternalServerErrorException('SUPABASE_URL not set');
+      throw new InternalServerErrorException('SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL not set');
     }
-    // Prefer service role if available and looks valid (JWT-like: at least 2 dots and sufficient length)
+    // Prefer service role if available and valid (not a placeholder)
     const sk = this.serviceKey?.trim();
-    const looksJwt = sk && sk.split('.').length === 3 && sk.length > 60;
-    if (looksJwt) {
+    if (sk && sk !== '...' && sk.length > 10) {
       return {
         apikey: sk,
         Authorization: `Bearer ${sk}`,
@@ -79,6 +80,7 @@ export class ProfilesService {
       [
         'id',
         'role',
+        'mobile',
         'education',
         'graduation_year',
         'domain',
@@ -142,8 +144,19 @@ export class ProfilesService {
         `profiles insert failed: ${res.status} ${msg}`,
       );
     }
-    const rows = (await res.json()) as ProfileRow[];
-    return rows[0] ?? { id: userId, role: 'student' };
+
+    try {
+      if (res.status !== 204) {
+        const text = await res.text();
+        if (text) {
+          const rows = JSON.parse(text) as ProfileRow[];
+          if (rows && rows[0]) return rows[0];
+        }
+      }
+    } catch {
+      // swallow and fall back
+    }
+    return { id: userId, role: 'student' } as ProfileRow;
   }
 
   async updateProfile(

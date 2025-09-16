@@ -21,6 +21,8 @@ import { LearningPathController } from './learning-path.controller';
 import { LearningPathService } from './learning-path.service';
 import { GamificationController } from './gamification.controller';
 import { GamificationService } from './gamification.service';
+import { AdminUsersController } from './admin-users.controller';
+import { AdminUsersService } from './admin-users.service';
 import { AuthModule } from './auth/auth.module';
 import { QuizModule } from './quiz.module';
 import { UploadsMiddleware } from './uploads.middleware';
@@ -41,6 +43,7 @@ import { UploadsMiddleware } from './uploads.middleware';
     CourseController,
     LearningPathController,
     GamificationController,
+    AdminUsersController,
   ],
   providers: [
     AppService, 
@@ -51,7 +54,8 @@ import { UploadsMiddleware } from './uploads.middleware';
     AssessmentDataSeeder,
     CourseService, 
     LearningPathService, 
-    GamificationService
+    GamificationService,
+    AdminUsersService
   ],
 })
 export class AppModule implements NestModule {

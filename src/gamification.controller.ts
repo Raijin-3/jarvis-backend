@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { GamificationService } from './gamification.service';
 
-@Controller('gamification')
+@Controller('v1/gamification')
 export class GamificationController {
   constructor(private readonly gamificationService: GamificationService) {}
 

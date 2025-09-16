@@ -5,7 +5,7 @@ import { ProfilesService, ProfileRow } from './profiles.service';
 @Controller('v1')
 export class ProfileController {
   constructor(private readonly profiles: ProfilesService) {}
-
+ 
   @UseGuards(SupabaseGuard)
   @Get('profile')
   async getProfile(@Req() req: any) {
@@ -13,7 +13,13 @@ export class ProfileController {
       /^Bearer\s+/i,
       '',
     );
-    const p = await this.profiles.ensureProfile(req.user.id, token);
+
+    
+    let p = await this.profiles.ensureProfile(req.user.id, token);
+
+    if (!p) {
+      p = { id: req.user.id, role: 'student' } as any;
+    }
     const completed =
       typeof p.onboarding_completed === 'boolean'
         ? p.onboarding_completed
@@ -29,24 +35,14 @@ export class ProfileController {
       '',
     );
     const patch: Partial<ProfileRow> = {
-      // Allow controlled role updates: users can set student/teacher; admin requires code
+      // Allow role updates: student, teacher, or admin (no admin code required)
       ...(typeof (body as any).role === 'string'
         ? (() => {
             const roleIn = String((body as any).role)
               .trim()
               .toLowerCase();
-            if (roleIn === 'student' || roleIn === 'teacher')
+            if (roleIn === 'student' || roleIn === 'teacher' || roleIn === 'admin')
               return { role: roleIn } as Partial<ProfileRow>;
-            if (roleIn === 'admin') {
-              const code = (body as any).admin_code || (body as any).adminCode;
-              if (
-                code &&
-                process.env.ADMIN_SIGNUP_CODE &&
-                code === process.env.ADMIN_SIGNUP_CODE
-              ) {
-                return { role: 'admin' } as Partial<ProfileRow>;
-              }
-            }
             return {} as Partial<ProfileRow>;
           })()
         : {}),
@@ -68,9 +64,19 @@ export class ProfileController {
       sports_arts: body.sports_arts ?? null,
       languages: body.languages ?? null,
       motivations: body.motivations ?? null,
+      // New enhanced onboarding fields
+      learning_style: body.learning_style ?? null,
+      career_goal: body.career_goal ?? null,
+      experience_level: body.experience_level ?? null,
+      preferred_pace: body.preferred_pace ?? null,
+      time_commitment: body.time_commitment ?? null,
+      focus_areas: body.focus_areas ?? null,
     };
-    // If all fields provided, set onboarding_completed when column exists
-    if (
+    
+    // Handle explicit onboarding_completed flag or auto-set if basic fields provided
+    if (body.onboarding_completed === true) {
+      (patch as any).onboarding_completed = true;
+    } else if (
       patch.education &&
       patch.graduation_year &&
       patch.domain &&
