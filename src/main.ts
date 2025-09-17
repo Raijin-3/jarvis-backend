@@ -10,9 +10,10 @@ async function bootstrap() {
 
   // Configure CORS - more restrictive for production
   const corsOptions = {
-    origin: process.env.NODE_ENV === 'production' 
-      ? process.env.FRONTEND_URL?.split(',') || false
-      : true,
+    // origin: process.env.NODE_ENV === 'production' 
+    //   ? process.env.FRONTEND_URL?.split(',') || false
+    //   : true,
+    origin: ['*'], // Allow all origins for now, adjust as needed
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],

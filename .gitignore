@@ -97,3 +97,4 @@ error.log
 *.backup
 *.bak
 *.tmp
+.env.production
