@@ -35,6 +35,14 @@ export class SupabaseGuard implements CanActivate {
       req.user = { id: payload.sub, email: (payload as any).email };
       return true;
     } catch (err) {
+      // Log the JWT verification error for debugging
+      console.error('JWT verification failed:', {
+        error: err instanceof Error ? err.message : String(err),
+        supabaseUrl: process.env.SUPABASE_URL,
+        allowDevUnverified: process.env.ALLOW_DEV_UNVERIFIED_JWT,
+        nodeEnv: process.env.NODE_ENV,
+      });
+
       // Optional dev override to unblock local work when JWKS is unreachable
       if (
         process.env.ALLOW_DEV_UNVERIFIED_JWT === '1' ||
@@ -43,8 +51,11 @@ export class SupabaseGuard implements CanActivate {
         try {
           const payload: any = decodeJwt(token);
           req.user = { id: payload.sub, email: payload.email };
+          console.log('Using unverified JWT fallback for user:', payload.sub);
           return true;
-        } catch {}
+        } catch (decodeErr) {
+          console.error('JWT decode also failed:', decodeErr instanceof Error ? decodeErr.message : String(decodeErr));
+        }
       }
       throw new UnauthorizedException('Invalid token');
     }
