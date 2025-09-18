@@ -22,8 +22,9 @@ import { AdminGuard } from './auth/admin.guard';
 
 export interface CreateQuestionDto {
   question_text: string;
-  question_type: 'mcq' | 'text' | 'image_mcq' | 'image_text';
+  question_type: 'mcq' | 'text' | 'image_mcq' | 'image_text' | 'short_text' | 'fill_blank';
   category_id?: string;
+  module_id?: string;
   difficulty_level: 'easy' | 'medium' | 'hard';
   points_value: number;
   time_limit_seconds: number;
@@ -62,6 +63,7 @@ export interface CreateTemplateDto {
   description?: string;
   instructions?: string;
   category_id?: string;
+  module_id?: string;
   time_limit_minutes: number;
   passing_percentage: number;
   randomize_questions: boolean;
@@ -113,6 +115,12 @@ export class AdminAssessmentController {
     return this.adminAssessmentService.deleteCategory(id, token);
   }
 
+  @Get('modules')
+  async getModules(@Req() req: any) {
+    const token = (req.headers.authorization as string | undefined)?.replace(/^Bearer\s+/i, '');
+    return this.adminAssessmentService.getCourseModules(token);
+  }
+
   // ========== Questions Management ==========
 
   @Get('questions')
@@ -122,6 +130,7 @@ export class AdminAssessmentController {
     @Query('limit') limit: number = 20,
     @Query('category_id') category_id?: string,
     @Query('question_type') question_type?: string,
+    @Query('module_id') module_id?: string,
     @Query('difficulty_level') difficulty_level?: string,
     @Query('search') search?: string
   ) {
@@ -131,6 +140,7 @@ export class AdminAssessmentController {
       limit,
       category_id,
       question_type,
+      module_id,
       difficulty_level,
       search
     }, token);
@@ -279,6 +289,14 @@ export class AdminAssessmentController {
     }, token);
   }
 
+  // ========== Data Seeding ==========
+
+  @Post('seed')
+  async seedAssessmentData(@Req() req: any) {
+    const token = (req.headers.authorization as string | undefined)?.replace(/^Bearer\s+/i, '');
+    return this.adminAssessmentService.seedInitialData(req.user.id, token);
+  }
+
   // ========== Validation Methods ==========
 
   private validateQuestionData(questionDto: CreateQuestionDto): void {
@@ -288,6 +306,10 @@ export class AdminAssessmentController {
 
     if (!questionDto.question_type) {
       throw new BadRequestException('Question type is required');
+    }
+
+    if (!questionDto.module_id) {
+      throw new BadRequestException('Module is required for assessment questions');
     }
 
     if (questionDto.question_type === 'mcq' || questionDto.question_type === 'image_mcq') {
@@ -301,7 +323,7 @@ export class AdminAssessmentController {
       }
     }
 
-    if (questionDto.question_type === 'text' || questionDto.question_type === 'image_text') {
+    if (['text', 'image_text', 'short_text', 'fill_blank'].includes(questionDto.question_type)) {
       if (!questionDto.text_answer?.correct_answer?.trim()) {
         throw new BadRequestException('Text questions must have a correct answer');
       }

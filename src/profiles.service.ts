@@ -2,6 +2,7 @@ import { Injectable, InternalServerErrorException } from '@nestjs/common';
 
 export interface ProfileRow {
   id: string;
+  org_id: string;
   role: string;
   mobile?: string | null;
   education?: string | null;
@@ -79,6 +80,7 @@ export class ProfilesService {
     const select = encodeURIComponent(
       [
         'id',
+        'org_id',
         'role',
         'mobile',
         'education',
@@ -125,9 +127,49 @@ export class ProfilesService {
     return rows[0] ?? null;
   }
 
+  private async getDefaultOrgId(): Promise<string> {
+    try {
+      // First, try to get existing default org
+      const orgsResponse = await fetch(`${this.restUrl}/orgs?name=eq.Default`, {
+        headers: this.headers(),
+      });
+
+      if (!orgsResponse.ok) {
+        throw new InternalServerErrorException('Failed to check for existing orgs');
+      }
+
+      const orgs = await orgsResponse.json();
+      
+      if (orgs.length > 0) {
+        return orgs[0].id;
+      }
+
+      // Create default org if it doesn't exist
+      const createOrgResponse = await fetch(`${this.restUrl}/orgs`, {
+        method: 'POST',
+        headers: {
+          ...this.headers(),
+          Prefer: 'return=representation',
+        },
+        body: JSON.stringify([{ name: 'Default' }]),
+      });
+
+      if (!createOrgResponse.ok) {
+        throw new InternalServerErrorException('Failed to create default org');
+      }
+
+      const newOrgs = await createOrgResponse.json();
+      return newOrgs[0].id;
+    } catch (error) {
+      throw new InternalServerErrorException(`Failed to get default org: ${error.message}`);
+    }
+  }
+
   async ensureProfile(userId: string, userToken?: string): Promise<ProfileRow> {
     const existing = await this.getProfile(userId, userToken);
     if (existing) return existing;
+
+    const defaultOrgId = await this.getDefaultOrgId();
 
     const url = `${this.restUrl}/profiles`;
     const res = await fetch(url, {
@@ -136,7 +178,7 @@ export class ProfilesService {
         ...this.headers(userToken),
         Prefer: 'resolution=ignore-duplicates,return=representation',
       },
-      body: JSON.stringify([{ id: userId, role: 'student' }]),
+      body: JSON.stringify([{ id: userId, org_id: defaultOrgId, role: 'student' }]),
     });
     if (!res.ok) {
       const msg = await res.text().catch(() => '');
@@ -156,7 +198,7 @@ export class ProfilesService {
     } catch {
       // swallow and fall back
     }
-    return { id: userId, role: 'student' } as ProfileRow;
+    return { id: userId, org_id: defaultOrgId, role: 'student' } as ProfileRow;
   }
 
   async updateProfile(

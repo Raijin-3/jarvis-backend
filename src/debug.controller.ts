@@ -1,5 +1,6 @@
-import { Controller, Get, Headers } from '@nestjs/common';
+import { Controller, Get, Headers, UseGuards, Req } from '@nestjs/common';
 import { decodeJwt } from 'jose';
+import { SupabaseGuard } from './auth/supabase.guard';
 
 @Controller('v1/debug')
 export class DebugController {
@@ -31,5 +32,31 @@ export class DebugController {
     } catch (e: any) {
       return { url, error: e?.message };
     }
+  }
+
+  @UseGuards(SupabaseGuard)
+  @Get('auth-test')
+  authTest(@Req() req: any) {
+    return {
+      success: true,
+      user: req.user,
+      timestamp: new Date().toISOString(),
+      environment: {
+        nodeEnv: process.env.NODE_ENV,
+        allowDevUnverified: process.env.ALLOW_DEV_UNVERIFIED_JWT,
+        supabaseUrl: process.env.SUPABASE_URL ? 'set' : 'missing',
+      }
+    };
+  }
+
+  @Get('env-check')
+  envCheck() {
+    return {
+      nodeEnv: process.env.NODE_ENV,
+      allowDevUnverified: process.env.ALLOW_DEV_UNVERIFIED_JWT,
+      supabaseUrl: process.env.SUPABASE_URL ? 'set' : 'missing',
+      supabaseAnonKey: process.env.SUPABASE_ANON_KEY ? 'set' : 'missing',
+      port: process.env.PORT,
+    };
   }
 }

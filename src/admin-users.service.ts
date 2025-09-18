@@ -50,6 +50,44 @@ export class AdminUsersService {
     };
   }
 
+  private async getDefaultOrgId(): Promise<string> {
+    try {
+      // First, try to get existing default org
+      const orgsResponse = await fetch(`${this.restUrl}/orgs?name=eq.Default`, {
+        headers: this.headers(),
+      });
+
+      if (!orgsResponse.ok) {
+        throw new InternalServerErrorException('Failed to check for existing orgs');
+      }
+
+      const orgs = await orgsResponse.json();
+      
+      if (orgs.length > 0) {
+        return orgs[0].id;
+      }
+
+      // Create default org if it doesn't exist
+      const createOrgResponse = await fetch(`${this.restUrl}/orgs`, {
+        method: 'POST',
+        headers: {
+          ...this.headers(),
+          Prefer: 'return=representation',
+        },
+        body: JSON.stringify([{ name: 'Default' }]),
+      });
+
+      if (!createOrgResponse.ok) {
+        throw new InternalServerErrorException('Failed to create default org');
+      }
+
+      const newOrgs = await createOrgResponse.json();
+      return newOrgs[0].id;
+    } catch (error) {
+      throw new InternalServerErrorException(`Failed to get default org: ${error.message}`);
+    }
+  }
+
   async getUsers(params: {
     page: number;
     limit: number;
@@ -184,8 +222,24 @@ export class AdminUsersService {
 
   async createUser(createUserRequest: CreateUserRequest): Promise<UserWithProfile> {
     console.log('create user admin service');
+    console.log(`${this.authUrl}`);
     console.log(createUserRequest);
     try {
+      // Get or create default org
+      const defaultOrgId = await this.getDefaultOrgId();
+
+      // Check if user already exists by email first
+      // const existingUserResponse = await fetch(`${this.authUrl}/users?email=${encodeURIComponent(createUserRequest.email)}`, {
+      //   headers: this.headers(),
+      // });
+
+      // if (existingUserResponse.ok) {
+      //   const existingUsers = await existingUserResponse.json();
+      //   if (existingUsers.users && existingUsers.users.length > 0) {
+      //     throw new BadRequestException(`User with email ${createUserRequest.email} already exists`);
+      //   }
+      // }
+
       // Create auth user
       const authResponse = await fetch(`${this.authUrl}/users`, {
         method: 'POST',
@@ -207,9 +261,58 @@ export class AdminUsersService {
 
       const authUser = await authResponse.json();
 
+      // Check if profile already exists for this user ID
+      const existingProfileResponse = await fetch(`${this.restUrl}/profiles?id=eq.${authUser.id}`, {
+        headers: this.headers(),
+      });
+
+      if (existingProfileResponse.ok) {
+        const existingProfiles = await existingProfileResponse.json();
+        if (existingProfiles.length > 0) {
+          // Profile already exists, update it instead of creating new one
+          const updateResponse = await fetch(`${this.restUrl}/profiles?id=eq.${authUser.id}`, {
+            method: 'PATCH',
+            headers: {
+              ...this.headers(),
+              Prefer: 'return=representation',
+            },
+            body: JSON.stringify({
+              org_id: defaultOrgId,
+              role: createUserRequest.role,
+              full_name: createUserRequest.full_name,
+              mobile: createUserRequest.mobile,
+              education: createUserRequest.education,
+              graduation_year: createUserRequest.graduation_year,
+              domain: createUserRequest.domain,
+              profession: createUserRequest.profession,
+              location: createUserRequest.location,
+              current_institute: createUserRequest.current_institute,
+            }),
+          });
+
+          if (!updateResponse.ok) {
+            // If update fails, clean up auth user and throw error
+            await this.cleanupAuthUser(authUser.id);
+            const error = await updateResponse.text();
+            throw new InternalServerErrorException(`Failed to update existing user profile: ${error}`);
+          }
+
+          const updatedProfiles = await updateResponse.json() as ProfileRow[];
+          return {
+            id: authUser.id,
+            email: authUser.email,
+            created_at: authUser.created_at,
+            email_confirmed_at: authUser.email_confirmed_at,
+            last_sign_in_at: authUser.last_sign_in_at,
+            profile: updatedProfiles[0],
+          };
+        }
+      }
+
       // Create profile
       const profileData: Partial<ProfileRow> = {
         id: authUser.id,
+        org_id: defaultOrgId,
         role: createUserRequest.role,
         full_name: createUserRequest.full_name,
         mobile: createUserRequest.mobile,
@@ -232,10 +335,7 @@ export class AdminUsersService {
 
       if (!profileResponse.ok) {
         // If profile creation fails, delete the auth user
-        await fetch(`${this.authUrl}/users/${authUser.id}`, {
-          method: 'DELETE',
-          headers: this.headers(),
-        });
+        await this.cleanupAuthUser(authUser.id);
         
         const error = await profileResponse.text();
         throw new InternalServerErrorException(`Failed to create user profile: ${error}`);
@@ -256,6 +356,21 @@ export class AdminUsersService {
         throw error;
       }
       throw new InternalServerErrorException(`Failed to create user: ${error.message}`);
+    }
+  }
+
+  private async cleanupAuthUser(userId: string): Promise<void> {
+    try {
+      const deleteResponse = await fetch(`${this.authUrl}/users/${userId}`, {
+        method: 'DELETE',
+        headers: this.headers(),
+      });
+      
+      if (!deleteResponse.ok) {
+        console.warn(`Failed to cleanup auth user ${userId} after profile creation failure`);
+      }
+    } catch (error) {
+      console.warn(`Error during auth user cleanup for ${userId}:`, error);
     }
   }
 

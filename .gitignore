@@ -99,3 +99,5 @@ error.log
 *.tmp
 .env.production
 123456.api.txt
+
+src/debug.controller.ts

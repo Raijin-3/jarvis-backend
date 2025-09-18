@@ -128,7 +128,7 @@ export class StudentAssessmentService {
         },
         by_type: {
           mcq: questions.filter(q => q.question_type === 'mcq').length,
-          text: questions.filter(q => q.question_type === 'text').length,
+          text: questions.filter(q => ['text', 'short_text', 'fill_blank'].includes(q.question_type)).length,
           image_mcq: questions.filter(q => q.question_type === 'image_mcq').length,
           image_text: questions.filter(q => q.question_type === 'image_text').length
         },
@@ -567,7 +567,7 @@ export class StudentAssessmentService {
           pointsEarned = question.points_value || 1;
         }
       }
-    } else if (question.question_type === 'text' || question.question_type === 'image_text') {
+    } else if (['text', 'image_text', 'short_text', 'fill_blank'].includes(question.question_type)) {
       if (responseDto.text_answer) {
         const textAnswerUrl = `${this.restUrl}/assessment_text_answers?question_id=eq.${question.id}`;
         const textAnswerRes = await fetch(textAnswerUrl, { headers: this.headers(userToken) });

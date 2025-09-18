@@ -14,7 +14,7 @@ export class AssessmentController {
       '',
     );
     const row = await this.svc.start(req.user.id, token);
-    const questions = this.svc.getQuestionSet();
+    const questions = await this.svc.getQuestionSet(token);
     return { assessment_id: row.id, questions };
   }
 
@@ -56,3 +56,5 @@ export class AssessmentController {
     return { latest: row };
   }
 }
+
+
